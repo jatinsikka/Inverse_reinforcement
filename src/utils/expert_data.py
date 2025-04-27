@@ -1,38 +1,39 @@
 import numpy as np
+import os
 from models.feature_extractor import FeatureExtractor
 
 def load_expert_data(config, expert_buffer):
-    """Load expert demonstrations from .npz file into expert buffer"""
+    """Load expert demonstrations from file"""
+    filepath = os.path.join(config.data_dir, config.expert_demos_file)
+    total_transitions = 0
+    
     try:
-        data = np.load(f"{config.data_dir}/{config.expert_demos_file}", allow_pickle=True)
-        feature_extractor = FeatureExtractor(config.feature_dim)
-        total_transitions = 0
+        data = np.load(filepath, allow_pickle=True)
+        num_episodes = len(data.files) // 2  # Since we store states and actions separately
         
-        # Process each episode
-        for episode_key in data.files:
-            episode_data = data[episode_key]
-            if isinstance(episode_data, np.ndarray) and episode_data.dtype == np.dtype('O'):
-                states, actions = episode_data.item()  # Unpack the tuple stored in the array
-                
-                # Debug info
-                print(f"\nProcessing {episode_key}")
-                print(f"States shape: {states.shape if hasattr(states, 'shape') else 'no shape'}")
-                print(f"First state type: {type(states[0])}")
-                print(f"First state content: {states[0]}")
-                
-                # Process each state-action pair in the episode
-                for state, action in zip(states, actions):
-                    features = feature_extractor.extract(state)
-                    expert_buffer.add_transition(features, action)
-                    total_transitions += 1
-                
-                expert_buffer.end_trajectory()
+        for i in range(num_episodes):
+            states = data[f'states_{i}']
+            actions = data[f'actions_{i}']
+            
+            print(f"\nProcessing episode {i}")
+            print(f"States shape: {states.shape}")
+            print(f"Actions shape: {actions.shape}")
+            
+            # Process each state-action pair in the episode
+            for state, action in zip(states, actions):
+                expert_buffer.add_transition(state, action)
+                total_transitions += 1
+            
+            expert_buffer.end_trajectory()
         
-        print(f"Loaded {total_transitions} expert transitions from {len(data.files)} episodes")
+        print(f"Loaded {total_transitions} expert transitions from {num_episodes} episodes")
+        
+        if total_transitions == 0:
+            raise Exception("No valid transitions were loaded")
         
     except Exception as e:
-        print("Error loading expert data. Keys in the .npz file:", data.files if 'data' in locals() else "No data loaded")
-        raise Exception(f"Failed to load expert data: {e}")
+        print("Error loading expert data:", str(e))
+        raise
 
 def save_expert_data(states, actions, config):
     """Save expert demonstrations to .npz file"""
@@ -41,4 +42,8 @@ def save_expert_data(states, actions, config):
         states=states,
         actions=actions
     )
+
+
+
+
 

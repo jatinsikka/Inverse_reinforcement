@@ -27,25 +27,40 @@ from utils.expert_data import load_expert_data
 from utils.buffer import ExpertBuffer
 import os
 
+print("PyTorch version:", torch.__version__)
+print("CUDA available:", torch.cuda.is_available())
+if torch.cuda.is_available():
+    print("CUDA device:", torch.cuda.get_device_name(0))
+
 def train(env, agent, config, visualizer):
     total_steps = 0
+    device = agent.device
     
     for episode in range(config.max_episodes):
         state, _ = env.reset()
+        # Pre-process state and move to GPU at the start
+        state = torch.FloatTensor(state).to(device)
         episode_reward = 0
+        progress = (episode + 1) / config.max_episodes * 100
         
         for step in range(config.max_steps):
             # Get action from policy
             action = agent.select_action(state)
             next_state, reward, done, truncated, info = env.step(action)
+            next_state = torch.FloatTensor(next_state).to(device)
             
-            # Store transition in replay buffer
+            # Store transition in replay buffer (keep as CPU tensors)
             agent.replay_buffer.push(
-                state, action, next_state, reward, done
+                state.cpu().numpy(), 
+                action, 
+                next_state.cpu().numpy(), 
+                reward, 
+                done
             )
             
             if len(agent.replay_buffer) > config.batch_size:
                 if total_steps % config.update_frequency == 0:
+                    # Batch updates are handled in update_networks
                     sf_loss, policy_loss = agent.update_networks(config.batch_size)
                     visualizer.update(episode_reward, sf_loss, policy_loss)
             
@@ -57,15 +72,16 @@ def train(env, agent, config, visualizer):
                 break
         
         if episode % 10 == 0:
-            print(f"Episode {episode}, Reward: {episode_reward}")
-            visualizer.plot()
-            
+            print(f"Training Progress: {progress:.1f}% (Episode {episode}/{config.max_episodes}), Reward: {episode_reward}")
+        
         if episode % 100 == 0:
             agent.save(f"{config.model_dir}/sfm_checkpoint_{episode}.pt")
             visualizer.save_plots(f"{config.model_dir}/training_plots_{episode}.png")
+    
+    print("Training Complete! (100%)")
+    visualizer.plot()
 
 def main():
-    
     # Initialize configurations
     sfm_config = SFMConfig()
     
@@ -73,7 +89,8 @@ def main():
     env = HighwayEnvWrapper(EnvironmentConfig())
     
     # Get state and action dimensions
-    state_dim = env.env.observation_space.shape[0]
+    # The state dimension is 25 (5 features * 5 vehicles)
+    state_dim = 25  # Flattened observation space
     action_dim = env.env.action_space.n
     
     # Initialize agent
@@ -95,3 +112,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+

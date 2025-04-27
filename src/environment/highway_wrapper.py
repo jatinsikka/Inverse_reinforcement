@@ -3,40 +3,39 @@ import highway_env
 import numpy as np
 
 class HighwayEnvWrapper:
-    def __init__(self, config):
-        self.config = config
-        self.env = self._configure_env()
-        
-    def _configure_env(self):
-        env_config = {
-            'observation': self.config.observation,
-            'action': self.config.action,
-            'lanes_count': self.config.lanes_count,
-            'initial_lane_id': 1,
-            'vehicles_density': 1,
-            'duration': self.config.duration,
-            'simulation_frequency': 15,
-            'policy_frequency': 5,
-            'render_mode': 'rgb_array',
-            'screen_width': 600,
-            'screen_height': 150,
-            'centering_position': [0.3, 0.5],
-            'scaling': 5.5,
-            'show_trajectories': True
+    def __init__(self, config=None):
+        self.env = gym.make('highway-v0', render_mode="human")
+        # Access the underlying environment using .env attribute
+        config_dict = {
+            'observation': {
+                'type': 'Kinematics',
+                'vehicles_count': config.vehicles_count if config else 5,
+                'features': ['presence', 'x', 'y', 'vx', 'vy'],
+                'normalize': True
+            },
+            'lanes_count': config.lanes_count if config else 3,
+            'vehicles_count': config.vehicles_count if config else 5,
+            'duration': config.duration if config else 40,
+            'action': config.action if config else {'type': 'DiscreteMetaAction'}
         }
         
-        env = gym.make('highway-v0', render_mode='rgb_array', config=env_config)
-        env.reset()
-        return env
-    
+        self.env.unwrapped.configure(config_dict)
+        
     def reset(self):
-        return self.env.reset()
+        obs, info = self.env.reset()
+        return self._preprocess_observation(obs), info
     
     def step(self, action):
-        return self.env.step(action)
+        next_obs, reward, terminated, truncated, info = self.env.step(action)
+        return self._preprocess_observation(next_obs), reward, terminated, truncated, info
     
-    def render(self):
-        return self.env.render()
+    def _preprocess_observation(self, obs):
+        """Preprocess the observation to flatten it into the correct shape"""
+        if isinstance(obs, np.ndarray):
+            return obs.reshape(-1)  # Flatten to 1D array
+        return obs
     
     def close(self):
         self.env.close()
+
+

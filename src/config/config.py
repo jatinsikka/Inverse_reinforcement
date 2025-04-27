@@ -9,20 +9,20 @@ class SFMConfig:
     
     # SFM Parameters
     feature_dim: int = 5
-    hidden_dim: int = 256
+    hidden_dim: int = 512  # Increased from 256
     gamma: float = 0.99
     tau: float = 0.005
     learning_rate: float = 0.001
     
     # Training
-    batch_size: int = 64
+    batch_size: int = 256  # Increased from 64
     buffer_size: int = 100000
-    update_frequency: int = 100
+    update_frequency: int = 50  # Decreased from 100 for more frequent updates
     
     # Paths
     model_dir: str = 'models'
     data_dir: str = 'data'
-    expert_demos_file: str = 'human_expert_demos_20250426_172315.npz'
+    expert_demos_file: str = 'human_expert_demos_20250426_191310.npz'
 
 @dataclass
 class EnvironmentConfig:
@@ -42,3 +42,4 @@ class EnvironmentConfig:
         self.action = {
             'type': 'DiscreteMetaAction'
         }
+
